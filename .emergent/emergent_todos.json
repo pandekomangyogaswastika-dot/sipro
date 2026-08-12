@@ -1,0 +1,46 @@
+[
+  {
+    "content": "Restore repo from GitHub into /app + reinstall deps + fix missing env (JWT_SECRET, EMERGENT_LLM_KEY)",
+    "status": "completed"
+  },
+  {
+    "content": "Fix stop-point leftover: missing BUILD.submitRequirements testId in constants/testIds/build.js",
+    "status": "completed"
+  },
+  {
+    "content": "Verify baseline: run_all_gates.sh (12 gates) + scripts/poc_31.py (63 assertions)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 31c closure: verify frontend compiles, Construction tabs render, all build dialogs wired",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 31d round 1: testing_agent_v3 end-to-end (iteration 40) — 0 critical/0 medium bugs",
+    "status": "completed"
+  },
+  {
+    "content": "Fix iter.39 findings: inline validation hints (reject/override/delay/hold) + persistent tick result panel",
+    "status": "completed"
+  },
+  {
+    "content": "Fix UX bug: sales RBAC page leaked raw permission strings twice -> single polite AccessDenied state",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 31d round 2 (iteration 41): US-5/6/11/12/13/16 all PASS, 0 critical/0 medium bugs",
+    "status": "completed"
+  },
+  {
+    "content": "Close remaining notes: portal OTP flow verified manually (real house progress + 9 milestones), template clone verified, buyer milestone date honesty fix",
+    "status": "completed"
+  },
+  {
+    "content": "Re-run all gates (12 PASS) + poc_31 (63 PASS) after all fixes",
+    "status": "completed"
+  },
+  {
+    "content": "Update plan.md + CODEBASE_MAP.md + test_result.md with Phase 31 completion status",
+    "status": "completed"
+  }
+]

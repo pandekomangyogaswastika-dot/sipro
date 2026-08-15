@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CheckCircle2, Clock, AlarmClock, ExternalLink, ShieldCheck, Camera,
+import { CheckCircle2, Clock, AlarmClock, ExternalLink, HardHat, ShieldCheck, Camera,
   FileText, RotateCcw, Hourglass } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -31,6 +31,11 @@ export default function TaskCard({ task, onComplete, onSnooze, onOpen, compact }
   const ProofIcon = PROOF_ICON[task.proof_kind] || ShieldCheck;
   const rejected = task.review === "rejected";
   const submitted = task.status === "submitted";
+  // Fase 32: task pekerjaan konstruksi HANYA boleh diselesaikan lewat Papan Mandor
+  // (foto bukti, checklist mutu, urutan pekerjaan, dan progres unit diperiksa di sana).
+  // Karena itu kartunya tidak menampilkan tombol Ajukan Hasil generik yang akan ditolak
+  // server — tombolnya langsung membawa pengguna ke tempat kerja yang benar.
+  const buildItem = task.meta?.build_item_id;
 
   const doComplete = async () => {
     if (!onComplete) return;
@@ -89,7 +94,12 @@ export default function TaskCard({ task, onComplete, onSnooze, onOpen, compact }
                 <AlarmClock className="h-3.5 w-3.5" />
               </Button>
             ) : null}
-            {needsProof || task.verify_mode !== "none" ? (
+            {buildItem ? (
+              <Button data-testid={WORK.taskBuildOpenBtn} size="sm" disabled={busy}
+                onClick={() => navigate(task.link || "/construction?tab=board")}>
+                <HardHat className="mr-1 h-3.5 w-3.5" /> Buka & ajukan hasil
+              </Button>
+            ) : needsProof || task.verify_mode !== "none" ? (
               <Button data-testid={WORK.taskSubmitBtn} size="sm" disabled={busy}
                 onClick={() => onOpen && onOpen(task)}>
                 <ProofIcon className="mr-1 h-3.5 w-3.5" /> Ajukan Hasil

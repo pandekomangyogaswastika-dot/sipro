@@ -100,6 +100,28 @@ def answers(item, *, fail_critical=False, skip_one=False):
     return out
 
 
+
+def free_unit(pm, project_id):
+    """Ambil unit yang belum terjadwal; bila habis, bebaskan satu jadwal yang BELUM ada
+    pekerjaan terverifikasi (aman: endpoint menolak menghapus jadwal berbukti).
+
+    POC dijalankan berulang kali; tanpa ini skrip gagal hanya karena data uji habis,
+    bukan karena fiturnya rusak.
+    """
+    rows = g(pm, "/build/unscheduled", project_id=project_id).json().get("data") or []
+    target = next((u for u in rows if u.get("buildable")), None)
+    if target:
+        return target, next((u for u in rows if not u.get("buildable")), None)
+    scheds = g(pm, "/build/schedules", project_id=project_id,
+               limit=100).json().get("data") or []
+    for s in sorted(scheds, key=lambda x: x.get("items_done") or 0):
+        if (s.get("items_done") or 0) == 0:
+            requests.delete(f"{BASE}/build/schedules/{s['id']}", headers=pm, timeout=60)
+            break
+    rows = g(pm, "/build/unscheduled", project_id=project_id).json().get("data") or []
+    return (next((u for u in rows if u.get("buildable")), None),
+            next((u for u in rows if not u.get("buildable")), None))
+
 def main():
     pm = login("pm@sipro.co.id")
     site = login("site@sipro.co.id")
@@ -135,9 +157,7 @@ def main():
 
     # unit yang belum punya jadwal
     proj = g(pm, "/projects").json()["data"][0]
-    free = g(pm, "/build/unscheduled", project_id=proj["id"]).json().get("data") or []
-    target = next((u for u in free if u.get("buildable")), None)
-    kavling = next((u for u in free if not u.get("buildable")), None)
+    target, kavling = free_unit(pm, proj["id"])
     if not check("Ada unit yang belum dijadwalkan untuk diuji", bool(target)):
         return
     start = (date.today() - timedelta(days=20)).isoformat()

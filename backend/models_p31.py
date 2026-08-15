@@ -90,12 +90,26 @@ class ChecklistAnswer(BaseModel):
     note: Optional[str] = Field(default=None, max_length=200)
 
 
+class GeoIn(BaseModel):
+    """Koordinat saat foto/hasil kerja diambil (Fase 32).
+
+    Dikirim EKSPLISIT oleh aplikasi, bukan dibaca dari EXIF — pipeline foto SIPRO
+    memang membuang metadata EXIF/GPS agar berkas yang dibagikan tidak membocorkan
+    lokasi rumah pembeli. Kewajiban merekam lokasi bisa dimatikan admin.
+    """
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    accuracy: Optional[float] = Field(default=None, ge=0, le=100000)
+    captured_at: Optional[str] = Field(default=None, max_length=40)
+
+
 class ItemSubmit(BaseModel):
-    """Staf mengajukan hasil kerja: catatan + foto bukti + checklist mutu."""
+    """Staf mengajukan hasil kerja: catatan + foto bukti + checklist mutu (+ lokasi)."""
     note: str = Field(min_length=10, max_length=1000)
     photo_file_ids: List[str] = []
     document_file_ids: List[str] = []
     checklist: List[ChecklistAnswer] = []
+    geo: Optional[GeoIn] = None
 
 
 class ItemVerify(BaseModel):
@@ -121,3 +135,18 @@ class ItemDelayCause(BaseModel):
 class ScheduleHold(BaseModel):
     cause: str
     note: str = Field(min_length=10, max_length=300)
+
+
+# ============================ Fase 32 ============================
+class BuildPolicyIn(BaseModel):
+    """Kebijakan bukti kerja — diatur admin, dibaca semua jalur pengajuan hasil."""
+    geo_required: bool = False
+    camera_only: bool = False
+    min_note_chars: int = Field(default=10, ge=5, le=200)
+    min_accuracy_m: int = Field(default=200, ge=10, le=5000)
+
+
+class WeeklyReportRun(BaseModel):
+    """Jalankan laporan mingguan (idempoten per pekan)."""
+    project_id: Optional[str] = None
+    ref_date: Optional[str] = Field(default=None, min_length=10, max_length=10)

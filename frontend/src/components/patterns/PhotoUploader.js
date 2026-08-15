@@ -1,12 +1,12 @@
 import React, { useRef, useState } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { Camera, ImagePlus, Loader2, MapPin, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/services/apiClient";
 import { photoSrc } from "@/utils/photoSrc";
-import { FIELD } from "@/constants/testIds";
+import { BUILD, FIELD } from "@/constants/testIds";
 
 const MAX_MB = 8;
 
@@ -21,20 +21,26 @@ const MAX_MB = 8;
  *
  * Fase 30b: server otomatis mengompres (maks 1600 px, JPEG progresif), mencap watermark
  * konteks (`watermark` prop: proyek/kavling + tanggal WIB + organisasi), membuang metadata
- * EXIF/GPS, dan membuat thumbnail. Penghematan nyata ditampilkan pada tiap foto supaya
- * pengguna tahu kuota pembeli benar-benar dihemat.
+ * EXIF/GPS, dan membuat thumbnail.
+ *
+ * Fase 32 (Papan Mandor): `capture` menampilkan tombol **Ambil foto** yang membuka kamera
+ * belakang HP langsung — mandor tidak perlu keluar aplikasi. `geo` (bila diberikan)
+ * dikirim bersama berkas sehingga koordinat pengambilan tersimpan terstruktur; metadata
+ * EXIF tetap dibuang demi privasi.
  */
 export default function PhotoUploader({
   value = [], onChange, ownerType = "generic", ownerId = null, max = 4,
   testId = FIELD.diaryPhotoInput, label = "Tambah foto", watermark = null,
+  capture = false, geo = null, cameraTestId = BUILD.cameraInput,
 }) {
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState({});
   const inputRef = useRef(null);
+  const camRef = useRef(null);
 
   const pick = async (e) => {
     const files = Array.from(e.target.files || []);
-    if (inputRef.current) inputRef.current.value = "";
+    if (e.target) e.target.value = "";
     if (!files.length) return;
     const room = max - value.length;
     if (room <= 0) {
@@ -55,11 +61,18 @@ export default function PhotoUploader({
         fd.append("owner_type", ownerType);
         if (ownerId) fd.append("owner_id", ownerId);
         if (watermark) fd.append("watermark", watermark);
+        if (geo?.lat && geo?.lng) {
+          fd.append("lat", geo.lat);
+          fd.append("lng", geo.lng);
+          if (geo.accuracy) fd.append("accuracy", geo.accuracy);
+          if (geo.captured_at) fd.append("captured_at", geo.captured_at);
+        }
         const res = await api.post("/files/upload", fd);
         const rec = res.data?.data;
         if (rec?.id) {
           added.push(rec.id);
-          info[rec.id] = { saving: rec.saving_pct || 0, kb: Math.round((rec.size || 0) / 1024) };
+          info[rec.id] = { saving: rec.saving_pct || 0, kb: Math.round((rec.size || 0) / 1024),
+            geo: !!rec.geo };
         }
       }
       if (added.length) {
@@ -79,21 +92,45 @@ export default function PhotoUploader({
   };
 
   const remove = (id) => onChange(value.filter((v) => v !== id));
+  const full = value.length >= max;
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
+      {capture ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input ref={camRef} type="file" accept="image/*" capture="environment" multiple
+            data-testid={cameraTestId} className="hidden" onChange={pick}
+            aria-label={`${label} (kamera)`} />
+          <Button type="button" size="sm" disabled={busy || full}
+            onClick={() => camRef.current?.click()}>
+            <Camera className="mr-1.5 h-4 w-4" /> Ambil foto
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={busy || full}
+            onClick={() => inputRef.current?.click()}>
+            <ImagePlus className="mr-1.5 h-4 w-4" /> Pilih berkas
+          </Button>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+        </div>
+      ) : null}
+      <div className={`flex items-center gap-2 ${capture ? "hidden" : ""}`}>
         <Input ref={inputRef} data-testid={testId} type="file" accept="image/*" multiple
-          aria-label={label} disabled={busy || value.length >= max} onChange={pick}
+          aria-label={label} disabled={busy || full} onChange={pick}
           className="h-auto cursor-pointer py-1.5 file:mr-2.5 file:cursor-pointer
             file:rounded-md file:border-0 file:bg-primary file:px-2.5 file:py-1
             file:text-xs file:font-semibold file:text-primary-foreground
             hover:file:bg-primary/90" />
-        {busy ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+        {busy && !capture ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : null}
       </div>
+      {capture ? (
+        <input ref={inputRef} data-testid={testId} type="file" accept="image/*" multiple
+          className="hidden" onChange={pick} aria-label={label} />
+      ) : null}
       <p className="text-[11px] text-muted-foreground">
         {value.length}/{max} foto · maks {MAX_MB}MB per berkas · otomatis dikompres, diberi
         watermark {watermark ? `“${watermark}”` : "proyek + tanggal"}, dan metadata GPS dibuang.
+        {geo?.lat ? " Koordinat pengambilan direkam terpisah." : ""}
       </p>
       {value.length ? (
         <div className="flex flex-wrap gap-2">
@@ -105,6 +142,11 @@ export default function PhotoUploader({
               {stats[id]?.saving ? (
                 <span className="absolute bottom-0 left-0 bg-black/65 px-1 text-[9px] font-semibold text-white">
                   -{stats[id].saving}% · {stats[id].kb}KB
+                </span>
+              ) : null}
+              {stats[id]?.geo ? (
+                <span className="absolute bottom-0 right-0 bg-emerald-700/80 p-0.5 text-white">
+                  <MapPin className="h-2.5 w-2.5" />
                 </span>
               ) : null}
               <Button type="button" size="icon" variant="secondary"

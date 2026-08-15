@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import Hint from "@/components/construction/BuildHint";
 import PhotoUploader from "@/components/patterns/PhotoUploader";
 import ReferenceSelect from "@/components/patterns/ReferenceSelect";
 import api from "@/services/apiClient";
+import useGeoCapture from "@/utils/useGeo";
 import { BUILD } from "@/constants/testIds";
 
 /** Ajukan hasil kerja: catatan + foto bukti + checklist mutu (item kritis wajib lulus). */
@@ -19,6 +21,9 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
   const [photos, setPhotos] = useState([]);
   const [answers, setAnswers] = useState({});
   const [busy, setBusy] = useState(false);
+  const [policy, setPolicy] = useState({ min_note_chars: 10 });
+  const geoNeeded = !!policy.geo_required;
+  const { geo, status: geoStatus, error: geoError, ask } = useGeoCapture(open && geoNeeded);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -29,6 +34,9 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
       init[c.code] = { result: c.result && c.result !== "pending" ? c.result : "", note: c.note || "" };
     });
     setAnswers(init);
+    // Kebijakan bukti kerja diambil dari server supaya aturan (lokasi wajib, panjang
+    // uraian) tidak dihardcode di UI dan selalu sama dengan yang ditegakkan backend.
+    api.get("/build/policy").then((r) => setPolicy(r.data?.data || {})).catch(() => {});
   }, [open, item]);
 
   if (!item) return null;
@@ -43,7 +51,10 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
   // Syarat ditampilkan APA ADANYA supaya pelaksana tahu apa yang kurang sebelum
   // menekan tombol — bukan ditolak diam-diam setelah mengirim.
   const problems = [];
-  if (note.trim().length < 10) problems.push("Uraian pekerjaan minimal 10 karakter.");
+  const needChars = Number(policy.min_note_chars || 10);
+  if (note.trim().length < needChars) {
+    problems.push(`Uraian pekerjaan minimal ${needChars} karakter.`);
+  }
   if (photoShort) {
     problems.push(`Tambah ${photoShort} foto bukti lagi `
       + `(minimal ${item.min_photos} foto untuk pekerjaan ini).`);
@@ -58,6 +69,10 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
     problems.push("Item mutu KRITIS belum lulus: "
       + `${criticalFail.map((c) => c.text).join("; ")}. Perbaiki dulu.`);
   }
+  if (geoNeeded && !geo) {
+    problems.push("Lokasi belum terekam — kebijakan perusahaan mewajibkan koordinat "
+      + "saat mengajukan hasil kerja.");
+  }
   const ready = !problems.length;
 
   const submit = async () => {
@@ -70,6 +85,7 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
       const res = await api.post(`/build/items/${item.id}/submit`, {
         note,
         photo_file_ids: photos,
+        geo: geo || null,
         checklist: (item.checklist || []).map((c) => ({
           code: c.code, result: answers[c.code].result, note: answers[c.code].note || null,
         })),
@@ -116,13 +132,35 @@ export function SubmitItemDialog({ item, unitCode, open, onOpenChange, onDone })
             <Label>Foto bukti pekerjaan</Label>
             <PhotoUploader value={photos} onChange={setPhotos} ownerType="build_item"
               ownerId={item.id} max={6} testId={BUILD.submitPhotos}
-              label="Foto bukti pekerjaan"
+              label="Foto bukti pekerjaan" capture geo={geo}
               watermark={`${unitCode} · ${item.name}`.slice(0, 70)} />
             <p className="text-[11px] text-muted-foreground">
               Foto otomatis diberi watermark unit + tanggal, metadata GPS dibuang, dan
               ditolak bila identik dengan bukti pekerjaan lain.
             </p>
           </div>
+
+          {geoNeeded ? (
+            <div data-testid={BUILD.geoNotice}
+              className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-[11px] ${geo
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                {geo
+                  ? `Lokasi terekam (${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}`
+                    + `${geo.accuracy ? ` · ±${geo.accuracy} m` : ""})`
+                  : geoStatus === "asking" ? "Membaca lokasi…"
+                    : (geoError || "Lokasi wajib direkam untuk pekerjaan ini.")}
+              </span>
+              {!geo ? (
+                <Button type="button" size="sm" variant="outline" data-testid={BUILD.geoRetry}
+                  onClick={ask} disabled={geoStatus === "asking"}>
+                  Rekam lokasi
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="space-y-2" data-testid={BUILD.itemChecklist}>
             <Label>Checklist mutu {answered.length}/{(item.checklist || []).length}</Label>
@@ -402,26 +440,5 @@ export function DelayCauseDialog({ item, open, onOpenChange, onDone }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * Panel syarat: menampilkan APA YANG KURANG sebelum tombol ditekan, bukan menolak
- * diam-diam setelah dikirim. Dipakai semua dialog Fase 31 agar konsisten.
- */
-export function Hint({ testId, problems = [], okText }) {
-  const ok = !problems.length;
-  return (
-    <div data-testid={testId}
-      className={`rounded-lg border p-2.5 text-[11px] ${ok
-        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-        : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-      {ok ? <p>{okText}</p> : (
-        <>
-          <p className="font-semibold">Belum bisa disimpan — lengkapi dulu:</p>
-          {problems.map((p, i) => <p key={i}>• {p}</p>)}
-        </>
-      )}
-    </div>
   );
 }

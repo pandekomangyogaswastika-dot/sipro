@@ -208,6 +208,8 @@ async def start_task(task_id: str,
     t = await _get_task(task_id, user)
     if not _can_work(t, user):
         raise HTTPException(status_code=403, detail="Akses ditolak: bukan tugas Anda.")
+    if build_item_id_of(t):
+        raise HTTPException(status_code=400, detail=build_task_message(t, "dimulai"))
     if t.get("status") not in ("open", "snoozed", "in_progress"):
         raise HTTPException(status_code=400,
                             detail=f"Tugas berstatus '{t.get('status')}' tidak bisa dimulai.")
@@ -215,6 +217,32 @@ async def start_task(task_id: str,
         "status": "in_progress", "started_at": t.get("started_at") or now_iso(),
         "review": "none", "updated_at": now_iso()}})
     return {"data": serialize_doc(await db.tasks.find_one({"id": task_id}, {"_id": 0}))}
+
+
+BUILD_TASK_CODES = ("TK-10", "TK-12")
+
+
+def build_item_id_of(task: dict) -> str:
+    """Task ini mewakili satu STEP konstruksi? (Fase 32)"""
+    return (task.get("meta") or {}).get("build_item_id")
+
+
+def build_task_message(task: dict, action: str) -> str:
+    """Pesan pengalihan yang MEMANDU, bukan penolakan buntu.
+
+    Kenapa dialihkan: task pekerjaan konstruksi punya penjaga yang tidak ada pada task
+    biasa — jumlah foto minimal, checklist mutu (butir KRITIS wajib lulus), penolakan foto
+    daur ulang, urutan pekerjaan (pendahulu wajib terverifikasi), waktu tunggu/curing, dan
+    kenaikan progres unit berbobot. Bila diselesaikan lewat jalur task generik, task akan
+    tampak SELESAI padahal progres rumah tidak bergerak dan gerbang mutu terlewati.
+    """
+    meta = task.get("meta") or {}
+    where = " ".join(x for x in [meta.get("step_code"), f"unit {meta.get('unit_code')}"
+                                 if meta.get("unit_code") else None] if x)
+    return (f"Pekerjaan konstruksi {where} tidak bisa {action} dari Work Hub. Buka "
+            "\"Papan Mandor\" pada halaman Progres & Mutu (tombol pada tugas ini) — di "
+            "sana bukti foto, checklist mutu, dan urutan pekerjaan diperiksa dulu "
+            "sebelum progres rumah naik.")
 
 
 def _proof_ok(kind: str, payload: TaskSubmit) -> tuple:
@@ -236,6 +264,8 @@ async def submit_task(task_id: str, payload: TaskSubmit,
     t = await _get_task(task_id, user)
     if not _can_work(t, user):
         raise HTTPException(status_code=403, detail="Akses ditolak: bukan tugas Anda.")
+    if build_item_id_of(t):
+        raise HTTPException(status_code=400, detail=build_task_message(t, "diajukan"))
     if t.get("status") in ("done", "cancelled"):
         raise HTTPException(status_code=400, detail="Tugas ini sudah ditutup.")
     ok, msg = _proof_ok(t.get("proof_kind"), payload)
@@ -288,6 +318,8 @@ async def verify_task(task_id: str, payload: TaskVerify,
                       user: dict = Depends(require_permission("work_tasks", "update"))):
     t = await _get_task(task_id, user)
     _assert_supervisor(user, t.get("division"))
+    if build_item_id_of(t):
+        raise HTTPException(status_code=400, detail=build_task_message(t, "diverifikasi"))
     if t.get("status") != "submitted":
         raise HTTPException(status_code=400, detail="Hanya tugas yang diajukan bisa diverifikasi.")
     ts = now_iso()
@@ -310,6 +342,8 @@ async def reject_task(task_id: str, payload: TaskReject,
                       user: dict = Depends(require_permission("work_tasks", "update"))):
     t = await _get_task(task_id, user)
     _assert_supervisor(user, t.get("division"))
+    if build_item_id_of(t):
+        raise HTTPException(status_code=400, detail=build_task_message(t, "dikembalikan"))
     if t.get("status") != "submitted":
         raise HTTPException(status_code=400, detail="Hanya tugas yang diajukan bisa dikembalikan.")
     ts = now_iso()

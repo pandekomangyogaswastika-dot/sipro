@@ -78,6 +78,7 @@ from routers.loans_router import router as loans_router
 from routers.marketing_fee_router import router as marketing_fee_router
 from routers.public_router import router as public_router
 from routers.build_router import router as build_router
+from routers.build_ops_router import router as build_ops_router
 from storage import init_storage
 
 logging.basicConfig(level=logging.INFO,
@@ -207,6 +208,7 @@ api.include_router(loans_router)
 api.include_router(marketing_fee_router)
 api.include_router(public_router)
 api.include_router(build_router)
+api.include_router(build_ops_router)
 app.include_router(api)
 
 app.add_middleware(

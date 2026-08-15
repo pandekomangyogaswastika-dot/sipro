@@ -4,6 +4,7 @@ import DocTemplatesPanel from "@/components/master/DocTemplatesPanel";
 import QcTemplatesPanel from "@/components/master/QcTemplatesPanel";
 import DataHealthPanel from "@/components/master/DataHealthPanel";
 import ReferencePanel from "@/components/master/ReferencePanel";
+import BuildPolicyPanel from "@/components/master/BuildPolicyPanel";
 import { MASTER } from "@/constants/testIds";
 import { Database } from "lucide-react";
 
@@ -25,14 +26,16 @@ export default function MasterDataPage() {
       </p>
 
       <Tabs defaultValue="doc">
-        <TabsList>
+        <TabsList className="flex h-auto flex-wrap justify-start">
           <TabsTrigger data-testid={MASTER.tabDocTemplates} value="doc">Template Dokumen</TabsTrigger>
           <TabsTrigger data-testid={MASTER.tabQcTemplates} value="qc">Template QC</TabsTrigger>
+          <TabsTrigger data-testid={MASTER.tabBuildPolicy} value="policy">Kebijakan Bukti Kerja</TabsTrigger>
           <TabsTrigger data-testid={MASTER.tabHealth} value="health">Kesehatan Data</TabsTrigger>
           <TabsTrigger data-testid={MASTER.tabReference} value="reference">Kamus Data (SSOT)</TabsTrigger>
         </TabsList>
         <TabsContent value="doc" className="mt-4"><DocTemplatesPanel /></TabsContent>
         <TabsContent value="qc" className="mt-4"><QcTemplatesPanel /></TabsContent>
+        <TabsContent value="policy" className="mt-4"><BuildPolicyPanel /></TabsContent>
         <TabsContent value="health" className="mt-4"><DataHealthPanel /></TabsContent>
         <TabsContent value="reference" className="mt-4"><ReferencePanel /></TabsContent>
       </Tabs>

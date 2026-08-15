@@ -703,6 +703,24 @@ async def _build_tick() -> dict:
         return {"schedules": 0}
 
 
+async def _build_weekly_report_tick() -> dict:
+    """Fase 32: laporan mingguan pembangunan untuk direksi & manajer proyek.
+
+    Dijalankan tiap Senin pagi WIB. Idempoten per pekan: bila sudah ada laporan untuk
+    pekan tersebut, angkanya disegarkan tetapi notifikasi & tugas baca tidak dibuat ulang.
+    """
+    import build_reports as br
+    try:
+        out = await br.run_weekly(ORG_ID, actor="system")
+        if out.get("created"):
+            logger.info("Laporan mingguan pembangunan %s: %s laporan baru",
+                        out.get("week_key"), out.get("created"))
+        return out
+    except Exception:  # noqa: BLE001
+        logger.exception("Laporan mingguan pembangunan gagal")
+        return {"created": 0}
+
+
 def start_scheduler():
     global _scheduler
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -739,6 +757,9 @@ def start_scheduler():
     # H-1/hari-H, dan eskalasi berjenjang bila item pekerjaan lewat tenggat.
     _scheduler.add_job(_build_tick, "interval", seconds=600, id="build_monitor",
                        max_instances=1, coalesce=True)
+    # Senin 00:05 UTC = Senin 07:05 WIB — laporan mingguan siap sebelum rapat pagi.
+    _scheduler.add_job(_build_weekly_report_tick, "cron", day_of_week="mon", hour=0,
+                       minute=5, id="build_weekly_report", max_instances=1, coalesce=True)
     _scheduler.start()
     logger.info("APScheduler started (dispatcher + expiry + sla + retention + no_response "
                 "+ pengingat angsuran/kas bon + work hub sweeper/recurring "

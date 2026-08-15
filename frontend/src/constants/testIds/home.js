@@ -41,6 +41,8 @@ export const WORK = {
   taskDetail: "task-detail-sheet",
   taskStartBtn: "task-start-button",
   taskSubmitBtn: "task-submit-button",
+  taskBuildOpenBtn: "task-build-open-button",
+  taskBuildRedirect: "task-build-redirect",
   taskSubmitNote: "task-submit-note",
   taskSubmitPhotos: "task-proof-photo-input",
   taskVerifyBtn: "task-verify-button",

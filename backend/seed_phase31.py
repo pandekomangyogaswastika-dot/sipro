@@ -173,3 +173,19 @@ async def seed_phase31(org_id: str = ORG_ID) -> dict:
         logger.info("Seed Fase 31: %s template, %s jadwal unit, %s progres warisan direset.",
                     out["templates"], out["schedules"], out.get("progress_reset"))
     return out
+
+
+async def ensure_build_indexes():
+    """Index koleksi Fase 31/32 (dipanggil `seed.ensure_indexes`).
+
+    Diletakkan di sini supaya `seed.py` tetap di bawah batas gate compliance dan semua
+    hal tentang jadwal pembangunan berada pada satu file yang jelas.
+    """
+    await db.build_items.create_index([("org_id", 1), ("schedule_id", 1), ("order", 1)])
+    await db.build_items.create_index([("org_id", 1), ("assigned_to", 1), ("status", 1)])
+    await db.build_items.create_index([("org_id", 1), ("project_id", 1), ("status", 1)])
+    await db.build_schedules.create_index([("org_id", 1), ("unit_id", 1)])
+    await db.build_item_submissions.create_index([("org_id", 1), ("item_id", 1)])
+    await db.build_policies.create_index([("org_id", 1)], unique=True)
+    await db.build_weekly_reports.create_index(
+        [("org_id", 1), ("project_id", 1), ("week_key", 1)], unique=True)

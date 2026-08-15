@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Play, Send, ShieldCheck, RotateCcw, UserCog, Info } from "lucide-react";
+import { ExternalLink, HardHat, Play, Send, ShieldCheck, RotateCcw, UserCog, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -78,8 +78,12 @@ export default function TaskDetailSheet({ taskId, open, onOpenChange, onChanged 
   if (!taskId) return null;
   const needsProof = (t?.proof_kind || "none") !== "none";
   const isOpenState = ["open", "snoozed"].includes(t?.status);
-  const canSubmit = data?.can_work && ["open", "in_progress", "snoozed"].includes(t?.status);
-  const canVerify = data?.can_verify && t?.status === "submitted";
+  // Fase 32: pekerjaan konstruksi punya penjaga sendiri (foto minimal, checklist mutu,
+  // urutan pekerjaan, progres berbobot) sehingga TIDAK boleh diselesaikan dari sini.
+  const buildItem = t?.meta?.build_item_id;
+  const canSubmit = !buildItem && data?.can_work
+    && ["open", "in_progress", "snoozed"].includes(t?.status);
+  const canVerify = !buildItem && data?.can_verify && t?.status === "submitted";
   const due = t?.due_date ? dueLabel(t.due_date) : null;
 
   return (
@@ -168,6 +172,24 @@ export default function TaskDetailSheet({ taskId, open, onOpenChange, onChanged 
                       ))}
                     </div>
                   </div>
+                </div>
+              ) : null}
+
+              {buildItem ? (
+                <div data-testid={WORK.taskBuildRedirect}
+                  className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-3">
+                  <p className="text-sm font-semibold text-sky-900">
+                    Pekerjaan konstruksi dikerjakan di Papan Mandor
+                  </p>
+                  <p className="text-[11px] text-sky-900">
+                    Di sana Anda mengambil foto bukti langsung dari lokasi, menjawab
+                    checklist mutu, dan sistem memeriksa urutan pekerjaan sebelum progres
+                    rumah naik. Instruksi lengkapnya sudah tertulis pada tugas ini.
+                  </p>
+                  <Button size="sm" data-testid={WORK.taskBuildOpenBtn}
+                    onClick={() => navigate(t.link || "/construction?tab=board")}>
+                    <HardHat className="mr-1.5 h-4 w-4" /> Buka & ajukan hasil
+                  </Button>
                 </div>
               ) : null}
 

@@ -16,9 +16,10 @@ import ReferenceSelect from "@/components/patterns/ReferenceSelect";
 import StatusPill from "@/components/patterns/StatusPill";
 import RefLabel from "@/components/patterns/RefLabel";
 import BuildItemCard from "@/components/construction/BuildItemCard";
+import Hint from "@/components/construction/BuildHint";
 import UnitTimelineChart from "@/components/construction/UnitTimelineChart";
 import {
-  DelayCauseDialog, Hint, OverrideGateDialog, RejectItemDialog, SubmitItemDialog, VerifyItemDialog,
+  DelayCauseDialog, OverrideGateDialog, RejectItemDialog, SubmitItemDialog, VerifyItemDialog,
 } from "@/components/construction/BuildItemDialogs";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/services/apiClient";

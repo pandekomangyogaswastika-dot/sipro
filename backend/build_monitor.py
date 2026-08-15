@@ -259,7 +259,8 @@ async def _escalate(org: str, item: dict, days: int, sched: dict):
 
 async def tick() -> dict:
     """Satu putaran pemantauan: gerbang, pengingat, eskalasi (idempoten per hari/level)."""
-    out = {"gates_opened": 0, "reminders": 0, "escalations": 0, "schedules": 0}
+    out = {"gates_opened": 0, "reminders": 0, "escalations": 0, "schedules": 0,
+           "tasks_closed": 0}
     today = today_iso_date()
     scheds = await db.build_schedules.find(
         {"status": {"$in": ["not_started", "in_progress", "at_risk"]}}, {"_id": 0}).to_list(500)
@@ -285,4 +286,8 @@ async def tick() -> dict:
             if days:
                 out["escalations"] += await _escalate(org, it, days, s)
         await be.recompute_schedule(org, s["id"])
+    # Fase 32: tutup task pekerjaan yang sudah tidak relevan supaya papan kerja pelaksana
+    # tidak menyimpan "task hantu" (mis. item sudah diverifikasi lewat jalur lain).
+    for org in sorted({s.get("org_id", ORG_ID) for s in scheds} or {ORG_ID}):
+        out["tasks_closed"] += await be.reconcile_item_tasks(org)
     return out

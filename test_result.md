@@ -345,3 +345,187 @@ agent_communication:
       (c) template clone diverifikasi manual (2 -> 3 template, artefak uji dibersihkan kembali).
       Guardrail akhir: run_all_gates.sh PASS (12 gates), scripts/poc_31.py 63/63 PASS,
       scripts/verify_31.py 30/30 PASS. FASE 31 DINYATAKAN SELESAI & TERVERIFIKASI.
+
+#====================================================================================================
+# FASE 32 — Task-based Execution + Papan Mandor + Laporan Mingguan + Analitik Telat
+#====================================================================================================
+
+## backend:
+  - task: "Fase 32 — Instruksi task per step + anti-bypass Work Hub (D-H/D-J/D-K)"
+    implemented: true
+    working: true
+    file: "backend/build_instruction.py, backend/build_engine.py, backend/routers/workhub_router.py, backend/routers/work_router.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Setiap step yang boleh dikerjakan otomatis punya task TK-10 (rework: TK-12) dengan DESKRIPSI = instruksi kerja lengkap (lingkup, checklist mutu + penanda KRITIS, hold point, waktu tunggu, urutan pendahulu, verifikator) + deep link /construction?tab=board&item=<id>. CACAT KRITIS DITUTUP: task konstruksi tidak lagi bisa di-start/submit/verify/reject/complete lewat Work Hub generik (dulu bisa lolos dengan photos:['file-palsu'] tanpa checklist sehingga task tampak selesai tetapi progres rumah tidak naik). Rekonsiliasi 'task hantu' pada tick. poc_32 79/79 PASS."
+
+  - task: "Fase 32 — Papan Mandor GET /api/build/board/today"
+    implemented: true
+    working: true
+    file: "backend/build_board.py, backend/routers/build_ops_router.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Kelompok: overdue/today/in_progress/rework/awaiting_verification/to_verify/upcoming/scheduled_later + counts + policy. Hanya pekerjaan milik pengguna; supervisor mendapat antrean verifikasi (kecuali pekerjaan yang dia ajukan sendiri — SoD). 'upcoming' = instruksi menunggu beserta alasan terkunci & perkiraan tanggal buka (urutan tidak bisa dilangkahi)."
+
+  - task: "Fase 32 — Kebijakan bukti kerja GET/PUT /api/build/policy (lokasi on/off oleh admin)"
+    implemented: true
+    working: true
+    file: "backend/build_policy.py, backend/routers/build_ops_router.py, backend/routers/files_router.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Hanya owner/super_admin boleh mengubah (PM 403, site 403). geo_required ON → submit tanpa koordinat ditolak, akurasi > min_accuracy_m ditolak; min_note_chars ditegakkan. Koordinat dikirim eksplisit (BUKAN dari EXIF — EXIF tetap dibuang demi privasi), tersimpan di item.geo, tiap evidence.geo, files.geo, dan snapshot kebijakan pada build_item_submissions."
+
+  - task: "Fase 32 — Laporan mingguan + PDF + scheduler Senin (TK-14)"
+    implemented: true
+    working: true
+    file: "backend/build_reports.py, backend/routers/build_ops_router.py, backend/engine.py, backend/jobdesk_catalog.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "POST /build/reports/weekly/run idempoten per (org, project, week_key); baris per rumah + totals + kurva rencana vs realisasi kumulatif + pekerjaan paling sering telat; notifikasi + tugas baca TK-14 untuk Direksi & PM (source_event memuat email — bug dedup yang membuat hanya 1 orang menerima sudah diperbaiki); PDF landscape valid (%PDF). APScheduler cron Senin 00:05 UTC (07:05 WIB)."
+
+  - task: "Fase 32 — Analitik keterlambatan GET /api/build/analytics/delays"
+    implemented: true
+    working: true
+    file: "backend/build_analytics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "by_step (rumah telat, rata-rata/maks hari, rasio, durasi template, penyebab dominan, unit terdampak), by_person (rasio telat, penyebab dominan, telat tanpa penjelasan), by_unit_type, + recommendations konkret (tambah durasi X hari, majukan pengadaan material, tinjau waktu tunggu, tinjau beban kerja, kalibrasi template tipe)."
+
+## frontend:
+  - task: "Fase 32c — Tab Papan Mandor (kerja hari ini, mobile-first)"
+    implemented: true
+    working: true
+    file: "frontend/src/components/construction/ForemanBoard.js, ForemanTaskCard.js, pages/ConstructionPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Tab default untuk site_engineer. Dicek main agent: 5 kelompok, 22 kartu, chip ringkasan, HOLD POINT, 'Lihat instruksi kerja lengkap', tombol 'Ambil foto & ajukan' (kamera HP), 'Penyebab telat', 'Jadwal unit'. 0 error konsol."
+
+  - task: "Fase 32c — Tab Laporan & Analitik (grafik + PDF + rekomendasi)"
+    implemented: true
+    working: true
+    file: "frontend/src/components/construction/WeeklyReportPanel.js, DelayAnalyticsPanel.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Dicek main agent: 1 kartu pekan, detail + 6 metrik, grafik rencana vs realisasi (recharts), 13 baris rumah, unduh PDF, 17 baris analitik langkah + 10 rekomendasi dengan CTA ke Template Jadwal."
+
+  - task: "Fase 32c — Kamera + rekam lokasi pada pengajuan hasil"
+    implemented: true
+    working: true
+    file: "frontend/src/components/patterns/PhotoUploader.js, utils/useGeo.js, components/construction/BuildItemDialogs.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Tombol 'Ambil foto' (capture=environment) + 'Pilih berkas'; koordinat dikirim bersama unggahan; panel lokasi (build-geo-notice) hanya muncul bila kebijakan mewajibkan, dengan tombol 'Rekam lokasi' dan pesan izin yang manusiawi. Panel syarat mencantumkan 'Lokasi belum terekam' sehingga tombol Ajukan nonaktif."
+
+  - task: "Fase 32c — CTA task konstruksi diarahkan ke Papan Mandor"
+    implemented: true
+    working: true
+    file: "frontend/src/components/patterns/TaskCard.js, components/work/TaskDetailSheet.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Kartu tugas dengan meta.build_item_id menampilkan 'Buka & ajukan hasil' (deep link) alih-alih tombol Ajukan Hasil generik yang akan ditolak server; sheet detail menampilkan panel penjelasan + tombol yang sama."
+
+  - task: "Fase 32c — Admin: tab Kebijakan Bukti Kerja"
+    implemented: true
+    working: true
+    file: "frontend/src/components/master/BuildPolicyPanel.js, pages/MasterDataPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Dicek main agent sebagai owner: sakelar GPS wajib, kamera saja, minimal karakter uraian, akurasi maksimal + tombol simpan. CATATAN JUJUR: route /admin/master-data hanya bisa dibuka super_admin & owner (RequireAdmin), jadi cabang read-only pada panel adalah jaring aman bila panel dipakai di tempat lain — bukan halaman yang bisa dibuka PM. Aturan yang berlaku tetap terlihat pelaksana lewat penanda 'Lokasi wajib direkam' di Papan Mandor."
+
+## test_plan:
+  current_focus:
+    - "Fase 32 — Instruksi task per step + anti-bypass Work Hub (D-H/D-J/D-K)"
+    - "Fase 32c — Tab Papan Mandor (kerja hari ini, mobile-first)"
+    - "Fase 32c — Kamera + rekam lokasi pada pengajuan hasil"
+    - "Fase 32 — Laporan mingguan + PDF + scheduler Senin (TK-14)"
+    - "Fase 32 — Analitik keterlambatan GET /api/build/analytics/delays"
+    - "Fase 32 — Kebijakan bukti kerja (lokasi on/off oleh admin)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+## agent_communication:
+    -agent: "main"
+    -message: >
+      FASE 32 SIAP DIUJI. Guardrail: bash scripts/run_all_gates.sh → PASS (13 gates, gate baru
+      scripts/verify_32.py 28/28); scripts/poc_32.py 79/79 PASS; scripts/poc_31.py 63/63 PASS
+      (tanpa regresi).
+      CACAT KRITIS YANG DITUTUP SESI INI (mohon diuji ulang): task pekerjaan konstruksi dulu bisa
+      diselesaikan lewat Work Hub generik hanya dengan `photos:["file-palsu-123"]` tanpa checklist —
+      task jadi 'submitted' padahal build_item tidak berubah. Sekarang /work/tasks/{id}/start|submit|
+      verify|reject dan /work/tasks/{id}/complete MENOLAK task yang punya meta.build_item_id dengan
+      pesan yang mengarahkan ke Papan Mandor + task punya deep link.
+      CARA UJI PAPAN MANDOR: login site@sipro.co.id → /construction (tab Papan Mandor otomatis).
+      Unggah foto: input file BIASA — ada dua input: [data-testid=build-camera-input] (kamera,
+      hidden) dan [data-testid=build-submit-photos] (berkas, hidden saat mode kamera). Keduanya
+      bisa dipakai set_input_files. Foto WAJIB berbeda tiap pengajuan (anti daur ulang hash).
+      UJI KEBIJAKAN LOKASI: owner@sipro.co.id → /admin/master-data → tab "Kebijakan Bukti Kerja".
+      Saat geo_required=ON, pengajuan dari browser headless tanpa izin lokasi HARUS ditolak dengan
+      pesan jelas (itu perilaku BENAR). Setelah menguji, MATIKAN kembali agar alur lain tidak
+      terhambat. Perekaman lokasi butuh izin geolocation — bila automasi tidak bisa memberi izin,
+      cukup pastikan panel [data-testid=build-geo-notice] + tombol [data-testid=build-geo-retry]
+      muncul dan tombol Ajukan nonaktif (backend sudah diuji poc_32).
+      JANGAN uji drag&drop/kamera fisik/suara.
+
+    -agent: "testing"
+    -message: >
+      Iterasi 42 (Fase 32): backend 100% (poc_32 79/79 + verify_32 28/28), frontend 11/12 user story
+      lulus penuh, 0 bug kritis, 0 bug medium. Anti-bypass task konstruksi TERBUKTI bekerja
+      (kartu tugas menampilkan 'Buka & ajukan hasil', bukan tombol Ajukan Hasil generik).
+      Regresi Fase 31 aman (monitoring + tick result, antrean kerja, template, QC, kawasan,
+      sheet jadwal 20 item, portal pembeli 33%). Catatan kecil: input foto perlu atribut multiple;
+      US-32-6/US-32-9 tidak terkonfirmasi karena kondisi data saat pengujian.
+
+    -agent: "main"
+    -message: >
+      PENUTUPAN FASE 32. Tiga catatan iterasi 42 ditindak:
+      (1) atribut `multiple` ditambahkan pada input kamera (input berkas sudah punya) sehingga
+          beberapa foto bisa dipilih sekaligus di desktop; pada HP tombol kamera tetap satu bidikan.
+      (2) US-32-9 (TK-14) DIVERIFIKASI via API sebagai owner@sipro.co.id: 1 tugas
+          "Baca laporan mingguan 2026-W33 — Cluster Asri Blok A" status open dengan
+          link=/construction?tab=reports&report=<id> (tester sebelumnya melihat daftar terfilter).
+      (3) US-32-6 (instruksi menunggu) DIVERIFIKASI main agent lewat Papan Mandor site engineer:
+          chip "12 menunggu urutan" + kelompok data-group="upcoming" berisi alasan terkunci dan
+          TANPA tombol ajukan/mulai; juga dijamin gate poc_32 ("Mengerjakan step yang di depan
+          DITOLAK") dan verify_32.
+      Guardrail akhir: run_all_gates.sh PASS (13 gates), poc_31 63/63, poc_32 79/79.

@@ -1,9 +1,12 @@
 // Fase 31 — Jadwal pembangunan berbukti per unit (monitoring, gerbang mutu, template).
+// Fase 32 — Papan Mandor (kerja hari ini), laporan mingguan, analitik keterlambatan.
 export const BUILD = {
+  tabBoard: "construction-tab-board",
   tabMonitor: "construction-tab-monitor",
   tabQueue: "construction-tab-queue",
   tabPhases: "construction-tab-phases",
   tabQc: "construction-tab-qc",
+  tabReports: "construction-tab-reports",
   tabTemplates: "construction-tab-templates",
   // antrean kerja (per orang)
   queuePanel: "build-queue-panel",
@@ -112,4 +115,40 @@ export const BUILD = {
   stepPred: "build-step-predecessor",
   stepCheckAdd: "build-step-check-add",
   stepCheckText: "build-step-check-text",
+  // ---------------- Fase 32: Papan Mandor ----------------
+  boardPanel: "build-board-panel",
+  boardCounts: "build-board-counts",
+  boardRefresh: "build-board-refresh",
+  boardGroup: "build-board-group",
+  boardCard: "build-board-card",
+  boardEmpty: "build-board-empty",
+  boardInstruction: "build-board-instruction",
+  boardInstructionToggle: "build-board-instruction-toggle",
+  boardStart: "build-board-start",
+  boardSubmit: "build-board-submit",
+  boardVerify: "build-board-verify",
+  boardReject: "build-board-reject",
+  boardDelay: "build-board-delay",
+  boardOpenUnit: "build-board-open-unit",
+  geoNotice: "build-geo-notice",
+  geoRetry: "build-geo-retry",
+  cameraInput: "build-camera-input",
+  // ---------------- Fase 32: laporan mingguan ----------------
+  reportPanel: "build-report-panel",
+  reportRun: "build-report-run",
+  reportRow: "build-report-row",
+  reportEmpty: "build-report-empty",
+  reportDetail: "build-report-detail",
+  reportCurve: "build-report-curve",
+  reportHouseRow: "build-report-house-row",
+  reportPdf: "build-report-pdf",
+  reportDelayRow: "build-report-delay-row",
+  // ---------------- Fase 32: analitik keterlambatan ----------------
+  analyticsPanel: "build-analytics-panel",
+  analyticsSummary: "build-analytics-summary",
+  analyticsStepRow: "build-analytics-step-row",
+  analyticsPersonRow: "build-analytics-person-row",
+  analyticsTypeRow: "build-analytics-type-row",
+  analyticsRec: "build-analytics-recommendation",
+  analyticsRecAction: "build-analytics-rec-action",
 };

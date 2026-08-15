@@ -405,3 +405,54 @@ Alat verifikasi tambahan: `scripts/verify_f26_money.py` (33 asersi HTTP end-to-e
 - **Status verifikasi:** `run_all_gates.sh` **PASS (12 gates)**; `scripts/poc_31.py`
   **63/63 PASS**; `scripts/verify_31.py` **30/30 PASS**; testing_agent_v3 iterasi 40 & 41 →
   **0 bug kritis, 0 bug medium** (16 user story lulus).
+
+## Phase 32 — Task-based Execution + Papan Mandor + Laporan Mingguan + Analitik Telat (SELESAI)
+> Owner: "setiap progress harus menjadi task, masing-masing upload foto sebagai bukti … setiap
+> step konstruksi jadi INSTRUKSI TASK dan harus ada validasinya."
+
+- **Backend baru:**
+  - `build_instruction.py` — SATU penyusun instruksi kerja dari data template (lingkup, checklist
+    mutu + penanda KRITIS, hold point, waktu tunggu/curing, urutan pendahulu, verifikator) +
+    `item_link()` deep link `/construction?tab=board&item=<id>` + `brief()` untuk kartu.
+  - `build_board.py` — Papan Mandor `today()`: kelompok `overdue/today/in_progress/rework/
+    awaiting_verification/to_verify/upcoming/scheduled_later` + counts + kebijakan bukti kerja.
+    `upcoming` = instruksi menunggu (blocked) beserta alasan terkunci → urutan tidak bisa dilangkahi.
+  - `build_policy.py` — koleksi `build_policies` (1 dok/org): `geo_required`, `camera_only`,
+    `min_note_chars`, `min_accuracy_m` + `check_note()` / `check_geo()` (pesan manusiawi).
+  - `build_reports.py` — laporan mingguan idempoten per (org, project, `week_key`): baris per rumah,
+    totals, kurva rencana vs realisasi kumulatif, pekerjaan paling sering telat, `pdf_bytes()`
+    (reportlab landscape), `_announce()` → notifikasi + tugas baca **TK-14** per penerima.
+  - `build_analytics.py` — analitik telat: `by_step`, `by_person`, `by_unit_type`, +
+    `recommendations` kalibrasi template (durasi kurang, material selalu telat, tukang kurang,
+    waktu tunggu tidak realistis, beban kerja, tipe unit).
+  - `routers/build_ops_router.py` (`/api/build`) — `GET board/today`, `GET/PUT policy`,
+    `GET reports/weekly`, `POST reports/weekly/run`, `GET reports/weekly/{id}`,
+    `GET reports/weekly/{id}/pdf`, `GET analytics/delays`.
+  - `seed_indexes.py` — seluruh `ensure_indexes()` dipindah dari `seed.py` (yang sudah menyentuh
+    batas gate 800 baris) + `seed_phase31.ensure_build_indexes()`.
+- **Backend diubah:**
+  - `build_engine._spawn_work_task` — deskripsi task = instruksi kerja lengkap + `link` deep link +
+    dipanggil untuk SEMUA item `ready` (bukan hanya transisi blocked→ready);
+    `reconcile_item_tasks()` menutup **task hantu** (dipanggil `build_monitor.tick`).
+  - `build_actions.submit_item` — kebijakan bukti kerja ditegakkan (panjang uraian + lokasi),
+    koordinat disimpan pada item/evidence, jejak audit `build_item_submissions` (siapa, kapan,
+    di mana, hash berkas, snapshot kebijakan); `reject_item` menyimpan `task_id` TK-12.
+  - `routers/workhub_router.py` + `routers/work_router.py` — **PENJAGA ANTI-BYPASS**: task dengan
+    `meta.build_item_id` tidak bisa start/submit/verify/reject/complete lewat jalur task generik
+    (dulu bocor: cukup `photos:["file-palsu"]` tanpa checklist), dialihkan ke Papan Mandor.
+  - `workhub.create_task/spawn` — parameter `link` (deep link per task).
+  - `routers/files_router.py` — `lat/lng/accuracy/captured_at` opsional → `files.geo` (EXIF tetap dibuang).
+  - `jobdesk_catalog.py` — **TK-14** baca laporan mingguan; `engine.py` — job cron Senin 00:05 UTC.
+- **Koleksi baru:** `build_policies`, `build_weekly_reports` (+ `build_item_submissions` kini benar-benar terisi).
+- **Frontend baru:** `components/construction/{ForemanBoard,ForemanTaskCard,WeeklyReportPanel,
+  DelayAnalyticsPanel,BuildHint}.js`, `components/master/BuildPolicyPanel.js`, `utils/useGeo.js`.
+- **Frontend diubah:** `ConstructionPage` → **7 tab** (Papan Mandor default untuk `site_engineer`)
+  + deep link `?tab=&item=&unit=&report=`; `PhotoUploader` (tombol **Ambil foto** kamera +
+  koordinat + penanda foto bergeotag); `BuildItemDialogs.SubmitItemDialog` (kebijakan + panel
+  lokasi `build-geo-notice`); `TaskCard`/`TaskDetailSheet` (CTA "Buka & ajukan hasil" untuk task
+  konstruksi); `MasterDataPage` (+tab Kebijakan Bukti Kerja).
+- **Gate baru:** `scripts/verify_32.py` (endpoint ops yatim, testId mati, penjaga anti-bypass masih
+  terpasang, kontrak board/policy/report/analytics) → `run_all_gates.sh` kini **13 gates**.
+- **Status verifikasi:** gates **PASS (13)**; `scripts/poc_32.py` **79/79**; `scripts/verify_32.py`
+  **28/28**; `poc_31.py` **63/63** (tanpa regresi); testing_agent_v3 iterasi 42 → **0 bug kritis,
+  0 bug medium**.

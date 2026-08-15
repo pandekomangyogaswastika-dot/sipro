@@ -16,6 +16,7 @@ GATES=(
   audit_forms_deep.py
   verify_business_invariants.py
   verify_31.py
+  verify_32.py
 )
 
 fail=0

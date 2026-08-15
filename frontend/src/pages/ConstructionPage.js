@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ClipboardCheck, FileStack, HardHat, ListChecks, Waypoints } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  ClipboardCheck, FileBarChart2, FileStack, HardHat, ListChecks, Smartphone, Waypoints,
+} from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EmptyState from "@/components/patterns/EmptyState";
@@ -7,9 +10,13 @@ import { AccessDenied, ErrorState } from "@/components/patterns/StateViews";
 import BuildMonitorPanel from "@/components/construction/BuildMonitorPanel";
 import BuildQueuePanel from "@/components/construction/BuildQueuePanel";
 import BuildTemplatePanel from "@/components/construction/BuildTemplatePanel";
+import DelayAnalyticsPanel from "@/components/construction/DelayAnalyticsPanel";
+import ForemanBoard from "@/components/construction/ForemanBoard";
 import InspectionsPanel from "@/components/construction/InspectionsPanel";
 import ProjectPhasesPanel from "@/components/construction/ProjectPhasesPanel";
 import ProjectSelect from "@/components/construction/ProjectSelect";
+import WeeklyReportPanel from "@/components/construction/WeeklyReportPanel";
+import { useAuth } from "@/context/AuthContext";
 import api from "@/services/apiClient";
 import { BUILD, CONSTRUCTION } from "@/constants/testIds";
 
@@ -21,19 +28,32 @@ import { BUILD, CONSTRUCTION } from "@/constants/testIds";
  * sama dan tidak ada tenggat, bukti, maupun eskalasi.
  *
  * Sekarang dipisah jujur sesuai objeknya:
- *   1. Monitoring Unit      — jadwal berbukti per rumah (progres = pekerjaan terverifikasi)
- *   2. Antrean Kerja        — pekerjaan saya / menunggu verifikasi, lintas unit
- *   3. Infrastruktur Kawasan— pekerjaan milik proyek (jalan, drainase, gerbang)
- *   4. QC & Inspeksi        — inspeksi formal + punch list
- *   5. Template Jadwal      — tahapan per tipe unit yang bisa dikonfigurasi
+ *   1. Papan Mandor         — "kerja hari ini" per orang (Fase 32, ramah dipakai dari HP)
+ *   2. Monitoring Unit      — jadwal berbukti per rumah (progres = pekerjaan terverifikasi)
+ *   3. Antrean Kerja        — pekerjaan saya / menunggu verifikasi, lintas unit
+ *   4. Infrastruktur Kawasan— pekerjaan milik proyek (jalan, drainase, gerbang)
+ *   5. QC & Inspeksi        — inspeksi formal + punch list
+ *   6. Laporan & Analitik   — laporan mingguan direksi + analitik keterlambatan (Fase 32)
+ *   7. Template Jadwal      — tahapan per tipe unit yang bisa dikonfigurasi
  */
+const FIELD_ROLES = ["site_engineer"];
+
 export default function ConstructionPage() {
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const params = new URLSearchParams(loc.search);
   const [projectId, setProjectId] = useState(null);
-  const [tab, setTab] = useState("monitor");
+  // Pelaksana lapangan membuka halaman ini untuk BEKERJA, bukan memantau → Papan Mandor
+  // menjadi tab awal mereka. Deep link (?tab=) selalu menang.
+  const [tab, setTab] = useState(params.get("tab")
+    || (FIELD_ROLES.includes(user?.role) ? "board" : "monitor"));
+  const [focusItem, setFocusItem] = useState(params.get("item") || null);
   const [phases, setPhases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [denied, setDenied] = useState(false);
+  const focusReport = params.get("report") || null;
 
   // Panggilan ini sekaligus menjadi PEMERIKSA HAK AKSES halaman: bila 403, seluruh
   // halaman diganti satu penjelasan sopan alih-alih setiap panel memunculkan pesan
@@ -57,6 +77,15 @@ export default function ConstructionPage() {
 
   useEffect(() => { loadPhases(); }, [loadPhases]);
 
+  const changeTab = (v) => {
+    setTab(v);
+    // URL mengikuti tab supaya tautan bisa dibagikan & tombol kembali bekerja wajar.
+    const q = new URLSearchParams(loc.search);
+    q.set("tab", v);
+    q.delete("item");
+    nav({ pathname: "/construction", search: `?${q.toString()}` }, { replace: true });
+  };
+
   return (
     <div data-testid={CONSTRUCTION.page} className="space-y-4">
       <div className="sticky top-0 z-20 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
@@ -66,8 +95,8 @@ export default function ConstructionPage() {
             <div>
               <h1 className="font-heading text-xl font-semibold">Progres & Mutu Konstruksi</h1>
               <p className="text-xs text-muted-foreground">
-                Progres rumah dihitung dari pekerjaan yang diverifikasi beserta buktinya —
-                bukan angka yang diketik.
+                Setiap tahap pekerjaan menjadi tugas berinstruksi dengan bukti foto dan
+                verifikasi supervisor — progres rumah dihitung dari situ.
               </p>
             </div>
           </div>
@@ -85,8 +114,11 @@ export default function ConstructionPage() {
           description="Halaman ini memuat jadwal pembangunan, bukti kerja, dan mutu tiap rumah — dibuka untuk Manajer Proyek, pelaksana lapangan, Keuangan, dan Direksi."
           askWho="Bila Anda memang perlu memantau progres rumah pembeli, mintakan hak akses ke admin sistem." />
       ) : (
-        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+        <Tabs value={tab} onValueChange={changeTab} className="space-y-4">
           <TabsList className="flex h-auto flex-wrap justify-start">
+            <TabsTrigger data-testid={BUILD.tabBoard} value="board">
+              <Smartphone className="mr-1.5 h-3.5 w-3.5" /> Papan Mandor
+            </TabsTrigger>
             <TabsTrigger data-testid={BUILD.tabMonitor} value="monitor">
               <HardHat className="mr-1.5 h-3.5 w-3.5" /> Monitoring Unit
             </TabsTrigger>
@@ -99,10 +131,18 @@ export default function ConstructionPage() {
             <TabsTrigger data-testid={BUILD.tabQc} value="qc">
               <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" /> QC & Inspeksi
             </TabsTrigger>
+            <TabsTrigger data-testid={BUILD.tabReports} value="reports">
+              <FileBarChart2 className="mr-1.5 h-3.5 w-3.5" /> Laporan & Analitik
+            </TabsTrigger>
             <TabsTrigger data-testid={BUILD.tabTemplates} value="templates">
               <FileStack className="mr-1.5 h-3.5 w-3.5" /> Template Jadwal
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="board">
+            <ForemanBoard projectId={projectId} focusItemId={focusItem}
+              onFocusHandled={() => setFocusItem(null)} />
+          </TabsContent>
 
           <TabsContent value="monitor">
             <BuildMonitorPanel projectId={projectId} />
@@ -128,6 +168,12 @@ export default function ConstructionPage() {
               </p>
             ) : null}
             <InspectionsPanel projectId={projectId} phases={phases} />
+          </TabsContent>
+
+          <TabsContent value="reports" className="space-y-5">
+            <WeeklyReportPanel projectId={projectId} focusReportId={focusReport} />
+            <DelayAnalyticsPanel projectId={projectId}
+              onOpenTemplates={() => changeTab("templates")} />
           </TabsContent>
 
           <TabsContent value="templates">

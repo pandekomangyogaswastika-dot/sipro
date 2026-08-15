@@ -74,6 +74,8 @@ async def _derive_context(org_id: str, owner_type: str, owner_id: str) -> str:
 async def upload_file(file: UploadFile = File(...), owner_type: str = Form("generic"),
                       owner_id: str = Form(None), doc_type: str = Form(None),
                       watermark: str = Form(None), optimize: bool = Form(True),
+                      lat: float = Form(None), lng: float = Form(None),
+                      accuracy: float = Form(None), captured_at: str = Form(None),
                       user: dict = Depends(require_permission("files", "create"))):
     """Unggah berkas.
 
@@ -81,6 +83,11 @@ async def upload_file(file: UploadFile = File(...), owner_type: str = Form("gene
     Baris kedua (organisasi + tanggal/jam WIB) SELALU ditambahkan sistem, jadi foto tetap
     punya penanda asal walau pemanggil tidak mengirim konteks apa pun. `optimize=false`
     dipakai untuk berkas yang harus utuh (mis. lampiran bukti resmi tanpa perubahan).
+
+    Fase 32: `lat/lng/accuracy/captured_at` opsional — koordinat saat foto DIAMBIL,
+    dikirim eksplisit oleh aplikasi. Metadata EXIF/GPS pada berkas tetap dibuang (privasi
+    lokasi rumah pembeli); koordinat disimpan sebagai field terstruktur yang bisa diaudit
+    dan bisa diwajibkan/dimatikan admin lewat Kebijakan Bukti Kerja.
     """
     data = await file.read()
     org_id = user.get("org_id", ORG_ID)
@@ -98,6 +105,13 @@ async def upload_file(file: UploadFile = File(...), owner_type: str = Form("gene
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if lat is not None and lng is not None:
+        import build_policy as bpol
+        geo = bpol.geo_doc({"lat": lat, "lng": lng, "accuracy": accuracy,
+                            "captured_at": captured_at})
+        if geo:
+            await db.files.update_one({"id": rec["id"]}, {"$set": {"geo": geo}})
+            rec["geo"] = geo
     return {"data": rec}
 
 

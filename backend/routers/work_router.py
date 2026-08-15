@@ -161,6 +161,9 @@ async def complete_task(task_id: str, payload: TaskComplete,
     supaya bukti kerja benar-benar tercatat (anti "selesai tanpa dikerjakan").
     """
     t = await _get_task_scoped(task_id, user)
+    if (t.get("meta") or {}).get("build_item_id"):
+        from routers.workhub_router import build_task_message
+        raise HTTPException(status_code=400, detail=build_task_message(t, "diselesaikan"))
     needs_proof = (t.get("proof_kind") or "none") != "none"
     needs_verify = (t.get("verify_mode") or "none") != "none"
     if needs_proof or needs_verify:

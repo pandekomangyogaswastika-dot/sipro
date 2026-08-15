@@ -172,7 +172,8 @@ async def create_task(org: str, jd: dict, *, source_event: str, assigned_to: str
                       title: str = None, description: str = None,
                       entity_type: str = None, entity_id: str = None,
                       due_date: str = None, assigned_by: str = "system",
-                      strict_once: bool = False, meta: dict = None) -> dict:
+                      strict_once: bool = False, meta: dict = None,
+                      link: str = None) -> dict:
     """Task v2 idempoten (satu `source_event` → satu task aktif).
 
     `strict_once=True` dipakai untuk task BERULANG: satu periode hanya boleh punya satu
@@ -199,7 +200,7 @@ async def create_task(org: str, jd: dict, *, source_event: str, assigned_to: str
         "source_event": source_event, "auto_generated": assigned_by == "system",
         "proof_kind": jd.get("proof_kind", "note"), "verify_mode": verify,
         "review": "none", "proof": [], "outcome": None,
-        "link": jd.get("link"), "meta": meta or {},
+        "link": link or jd.get("link"), "meta": meta or {},
         "created_by": assigned_by, "created_at": ts, "updated_at": ts,
     }
     await db.tasks.insert_one(dict(doc))
@@ -216,7 +217,7 @@ async def spawn(org: str, code: str, *, source_event: str, record_owner: str = N
                 title: str = None, description: str = None, entity_type: str = None,
                 entity_id: str = None, due_date: str = None, assignee_override: str = None,
                 assigned_by: str = "system", strict_once: bool = False,
-                meta: dict = None) -> list:
+                meta: dict = None, link: str = None) -> list:
     """Buat task dari sebuah kode jobdesk untuk semua penerima yang cocok."""
     jd = await jobdesk(org, code)
     if not jd.get("is_active", True):
@@ -231,7 +232,8 @@ async def spawn(org: str, code: str, *, source_event: str, record_owner: str = N
         t = await create_task(org, jd, source_event=se, assigned_to=email, title=title,
                               description=description, entity_type=entity_type,
                               entity_id=entity_id, due_date=due_date,
-                              assigned_by=assigned_by, strict_once=strict_once, meta=meta)
+                              assigned_by=assigned_by, strict_once=strict_once, meta=meta,
+                              link=link)
         if t:
             made.append(t)
     return made

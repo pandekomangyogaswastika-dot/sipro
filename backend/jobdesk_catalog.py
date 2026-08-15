@@ -158,6 +158,15 @@ CATALOG = [
      "link": "/construction",
      "desc": ("Eskalasi berjenjang: telat ≥1 hari ke staf+supervisor, ≥3 hari ke direksi, "
               "≥7 hari peringatan kritis.")},
+    # -------- Fase 32: laporan mingguan pembangunan untuk direksi & manajer proyek --------
+    {"code": "TK-14", "division": "technical",
+     "title": "Baca laporan mingguan pembangunan",
+     "source": "event", "event": "build.weekly_report", "native": True, "type": "review",
+     "assignee": "supervisor", "role_hint": "project_manager", "sla_hours": 48,
+     "priority": "medium", "proof": "note", "verify": "none", "auto_check": None,
+     "link": "/construction",
+     "desc": ("Ringkasan progres tiap rumah per pekan (rencana vs realisasi, pekerjaan "
+              "telat, penyebab dominan) — dikirim otomatis setiap Senin, bisa diunduh PDF.")},
 
     # ==================== DIGITAL MARKETING ====================
     {"code": "DM-01", "division": "digital_marketing", "title": "Pantau lead iklan & CPL hari ini",

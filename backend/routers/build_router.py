@@ -342,6 +342,25 @@ async def list_items(project_id: str = None, status: str = None, mine: bool = Fa
     return {"data": serialize_doc(rows), "total": total, "can": _can(user)}
 
 
+@router.get("/items/{item_id}")
+async def get_item(item_id: str,
+                   user: dict = Depends(require_permission("construction", "view"))):
+    """Detail SATU pekerjaan + instruksi + jejak pengajuan (dipakai deep link task).
+
+    Tanpa endpoint ini, tautan pada tugas Work Hub tidak bisa membuka pekerjaan yang
+    dimaksud dan pengguna harus mencari sendiri di daftar jadwal.
+    """
+    import build_instruction as bi
+    item, sched = await _get_item(item_id, user)
+    subs = await db.build_item_submissions.find(
+        {"org_id": _org(user), "item_id": item_id}, {"_id": 0, "checklist": 0}).sort(
+        "submitted_at", -1).to_list(20)
+    return {"data": serialize_doc(item), "schedule": serialize_doc(sched),
+            "instruction": bi.instruction_lines(item, sched or {}),
+            "brief": serialize_doc(bi.brief(item)),
+            "submissions": serialize_doc(subs), "can": _can(user)}
+
+
 @router.post("/items/{item_id}/start")
 async def start_item(item_id: str,
                      user: dict = Depends(require_permission("construction", "update"))):

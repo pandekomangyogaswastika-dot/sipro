@@ -333,28 +333,68 @@ async def refresh_gates(org: str, schedule_id: str) -> int:
                 "status": want, "gate_reasons": g["reasons"],
                 "gate_ready_at": g["ready_at"], "updated_at": now_iso()}})
             changed += 1
-            if want == "ready" and it.get("status") == "blocked":
-                await _spawn_work_task(org, {**it, "status": "ready"}, sched)
+        # Fase 32: setiap pekerjaan yang BOLEH dikerjakan wajib punya task berinstruksi.
+        # `wh.spawn` idempoten per `source_event`, jadi aman dipanggil berulang — ini
+        # menutup celah lama: item yang sudah 'ready' sejak jadwal dibuat (atau dari data
+        # seed) tidak pernah punya task sehingga pekerjaannya tak muncul di papan kerja.
+        if want == "ready":
+            await _spawn_work_task(org, {**it, "status": "ready",
+                                         "gate_reasons": g["reasons"]}, sched)
     return changed
 
 
 async def _spawn_work_task(org: str, item: dict, sched: dict):
-    """Satu tugas Work Hub per item yang siap dikerjakan (bukan mesin tugas baru)."""
+    """Satu tugas Work Hub per item yang siap dikerjakan (bukan mesin tugas baru).
+
+    Fase 32: deskripsi task = INSTRUKSI KERJA lengkap (lingkup, checklist mutu beserta
+    penanda KRITIS, hold point, waktu tunggu, urutan pendahulu, siapa verifikatornya) dan
+    `link` menunjuk langsung ke pekerjaan tersebut di Papan Mandor — dulu deskripsinya
+    satu baris dan semua task menuju '/construction' sehingga pelaksana harus mencari
+    sendiri pekerjaan mana yang dimaksud.
+    """
     if not item.get("assigned_to"):
         return
+    import build_instruction as bi
     rows = await wh.spawn(
         org, "TK-10", source_event=f"build.item_ready:{item['id']}",
         assignee_override=item["assigned_to"], entity_type="unit", entity_id=item["unit_id"],
         title=f"{item['name']} — unit {item.get('unit_code')}",
-        description=(f"Minggu {item.get('week')} · rencana {item.get('planned_start')} → "
-                     f"{item.get('planned_finish')} · bukti minimal "
-                     f"{item.get('min_photos')} foto + checklist mutu."),
+        description=bi.task_description(item, sched),
         due_date=f"{item.get('planned_finish')}T17:00:00+00:00",
+        link=bi.item_link(item),
         meta={"build_item_id": item["id"], "schedule_id": item["schedule_id"],
-              "unit_code": item.get("unit_code"), "step_code": item.get("step_code")})
+              "unit_code": item.get("unit_code"), "step_code": item.get("step_code"),
+              "min_photos": int(item.get("min_photos") or 0),
+              "checklist_total": len(item.get("checklist") or [])})
     if rows:
         await db.build_items.update_one({"id": item["id"]},
                                        {"$set": {"task_id": rows[0]["id"]}})
+
+
+async def reconcile_item_tasks(org: str) -> int:
+    """Tutup task pekerjaan yang sudah tidak relevan (anti "task hantu").
+
+    Task bisa tertinggal terbuka bila status item berubah lewat jalur lain (mis. data
+    seed/migrasi lama), sehingga papan kerja menampilkan pekerjaan yang sebenarnya sudah
+    selesai. Rekonsiliasi ini dijalankan pada tick pemantauan.
+    """
+    closed = 0
+    q = {"org_id": org, "meta.build_item_id": {"$exists": True},
+         "jobdesk_code": {"$in": ["TK-10", "TK-12"]},
+         "status": {"$in": wh.OPEN_STATES}}
+    async for t in db.tasks.find(q, {"_id": 0, "id": 1, "meta": 1}):
+        iid = (t.get("meta") or {}).get("build_item_id")
+        item = await db.build_items.find_one({"id": iid}, {"_id": 0, "status": 1})
+        if item and item.get("status") in ("blocked", "ready", "in_progress", "rework"):
+            continue
+        review = "approved" if (item or {}).get("status") == "done" else "none"
+        note = ("Pekerjaan sudah diverifikasi." if review == "approved"
+                else "Pekerjaan sudah diajukan / item tidak aktif lagi.")
+        await db.tasks.update_one({"id": t["id"]}, {"$set": {
+            "status": "done", "review": review, "completed_at": now_iso(),
+            "verify_note": note, "updated_at": now_iso()}})
+        closed += 1
+    return closed
 
 
 async def _close_item_tasks(org: str, item: dict, review: str, note: str = None):

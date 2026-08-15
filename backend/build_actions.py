@@ -11,8 +11,10 @@ Semua aturan "penjaga" ada di sini supaya tidak tersebar di router:
 import logging
 
 import build_engine as be
+import build_instruction as bi
+import build_policy as bpol
 import workhub as wh
-from core_utils import now_iso, today_iso_date
+from core_utils import new_id, now_iso, today_iso_date
 from db import db, ORG_ID
 from engine import add_activity, create_notification, emit
 from reference_p31 import DELAY_CAUSE_LABEL
@@ -59,6 +61,11 @@ async def submit_item(org: str, item: dict, sched: dict, payload, user: dict) ->
         raise ValueError(_blocked_message(item))
     if item.get("status") == "blocked" and not item.get("override"):
         raise ValueError(_blocked_message(item))
+    # Fase 32: kebijakan bukti kerja (panjang uraian + kewajiban lokasi) diatur admin,
+    # jadi aturannya sama lewat jalur mana pun (Papan Mandor, sheet jadwal, atau API).
+    policy = await bpol.get_policy(org)
+    bpol.check_note(policy, payload.note)
+    geo = bpol.check_geo(policy, getattr(payload, "geo", None))
     photos = list(payload.photo_file_ids or [])
     docs = list(payload.document_file_ids or [])
     need = int(item.get("min_photos") or 0)
@@ -87,17 +94,36 @@ async def submit_item(org: str, item: dict, sched: dict, payload, user: dict) ->
                          + ". Perbaiki dulu — tidak boleh dilewati.")
     evidence = await be.collect_evidence(org, photos + docs, item, actor)
     ts = now_iso()
+    if geo:
+        for e in evidence:
+            e["geo"] = geo
     upd = {
         "status": "submitted", "note": payload.note.strip(), "checklist": checklist,
         "evidence": (item.get("evidence") or []) + evidence,
         "submitted_at": ts, "submitted_by": actor, "updated_at": ts,
         "started_at": item.get("started_at") or ts,
-        "gate_reasons": [], "rejected_reason": None,
+        "gate_reasons": [], "rejected_reason": None, "geo": geo,
     }
     await db.build_items.update_one({"id": item["id"]}, {
         "$set": upd,
         "$push": {"history": _hist("submit", actor, payload.note.strip()[:200],
-                                   {"photos": len(photos), "documents": len(docs)})}})
+                                   {"photos": len(photos), "documents": len(docs),
+                                    "geo": geo})}})
+    # Jejak audit pengajuan (koleksi terpisah agar bukti tidak ikut terhapus/berubah saat
+    # item diajukan ulang): siapa, kapan, di mana, dengan berkas & hash apa.
+    await db.build_item_submissions.insert_one({
+        "id": new_id(), "org_id": org, "item_id": item["id"],
+        "schedule_id": item["schedule_id"], "unit_id": item["unit_id"],
+        "unit_code": item.get("unit_code"), "step_code": item.get("step_code"),
+        "attempt": int(item.get("rework_count") or 0) + 1,
+        "submitted_by": actor, "submitted_at": ts, "note": payload.note.strip(),
+        "geo": geo, "checklist": checklist,
+        "files": [{"file_id": e.get("file_id"), "sha256": e.get("sha256"),
+                   "filename": e.get("filename"), "by_other_person": e.get("by_other_person")}
+                  for e in evidence],
+        "policy_snapshot": {k: policy.get(k) for k in
+                            ("geo_required", "camera_only", "min_note_chars")},
+    })
     await be._close_item_tasks(org, item, "pending", "Hasil diajukan, menunggu verifikasi.")
     verifier = item.get("verifier_hint")
     await wh.spawn(org, "TK-11", source_event=f"build.item_submitted:{item['id']}",
@@ -183,13 +209,21 @@ async def reject_item(org: str, item: dict, reason: str, user: dict) -> dict:
                  "rework_count": int(item.get("rework_count") or 0) + 1},
         "$push": {"history": _hist("reject", actor, reason)}})
     await be._close_item_tasks(org, item, "rejected", reason)
-    await wh.spawn(org, "TK-12", source_event=f"build.item_rework:{item['id']}:"
-                                             f"{int(item.get('rework_count') or 0) + 1}",
-                   assignee_override=item.get("assigned_to"), entity_type="unit",
-                   entity_id=item["unit_id"],
-                   title=f"Perbaiki: {item['name']} — unit {item.get('unit_code')}",
-                   description=f"Dikembalikan {actor}: {reason}",
-                   meta={"build_item_id": item["id"], "schedule_id": item["schedule_id"]})
+    rows = await wh.spawn(org, "TK-12", source_event=f"build.item_rework:{item['id']}:"
+                                                    f"{int(item.get('rework_count') or 0) + 1}",
+                          assignee_override=item.get("assigned_to"), entity_type="unit",
+                          entity_id=item["unit_id"],
+                          title=f"Perbaiki: {item['name']} — unit {item.get('unit_code')}",
+                          description=(f"Dikembalikan {actor}: {reason}\n\n"
+                                       + bi.task_description(item)),
+                          link=bi.item_link(item),
+                          meta={"build_item_id": item["id"],
+                                "schedule_id": item["schedule_id"],
+                                "unit_code": item.get("unit_code"),
+                                "step_code": item.get("step_code")})
+    if rows:
+        await db.build_items.update_one({"id": item["id"]},
+                                       {"$set": {"task_id": rows[0]["id"]}})
     if item.get("assigned_to"):
         await create_notification(
             user_email=item["assigned_to"], title="Pekerjaan dikembalikan (perlu perbaikan)",
